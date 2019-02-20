@@ -1,0 +1,28 @@
+version: '3'
+services:
+  crate:
+    image: gianluca/crate:nightly
+    ports:
+      - '4200:4200'
+      - '4300:4300'
+      - '5436:5432'
+  redis:
+    image: redis
+    restart: always
+    volumes:
+      - redis:/data
+  superset:
+    image: amancevice/superset
+    restart: always
+    depends_on:
+      - crate
+      - redis
+    environment:
+      MAPBOX_API_KEY: ${MAPBOX_API_KEY}
+    ports:
+      - "8088:8088"
+    volumes:
+      - ./superset_config.py:/etc/superset/superset_config.py
+volumes:
+  redis:
+    external: false

@@ -55,6 +55,7 @@ RUN useradd -U -m superset && \
         pyldap==2.4.28 \
         pymssql==2.1.3 \
         redis==2.10.5 \
+        crate==0.22.1 \
         sqlalchemy-clickhouse==0.1.5.post0 \
         sqlalchemy-redshift==0.7.1 \
         superset==${SUPERSET_VERSION} && \
