@@ -1,0 +1,53 @@
+apiVersion: "apps/v1"
+kind: StatefulSet
+metadata:
+  # This is the name used as a prefix for all pods in the set.
+  name: postgres
+  namespace: pioneers
+spec:
+  serviceName: "postgres-set"
+  # Our cluster has three nodes.
+  replicas: 1
+  selector:
+    matchLabels:
+      # The pods in this cluster have the `app:crate` app label.
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      # This final section is the core of the StatefulSet configuration.
+      # It defines the container to run in each pod.
+      containers:
+      - name: postgres
+        # Use the CrateDB 3.2.3 Docker image.
+        image: postgres:9.6
+        resources:
+          limits:
+            cpu: .25
+            memory: 500Mi
+        ports:
+          # Port 5432 for PostgreSQL wire protocol clients.
+        - containerPort: 5432
+          name: postgres
+          protocol: TCP
+        # Environment variables passed through to the container.
+        env:
+          # This is variable is detected by CrateDB.
+        - name: POSTGRES_USER
+          value: postgres
+        - name: POSTGRES_PASSWORD
+          value: password
+  volumeClaimTemplates:
+    # Use persistent storage.
+    - metadata:
+        name: postgres-data
+      spec:
+        #probably change storageclassname this before running in bregenz
+        storageClassName: standard
+        accessModes:
+        - ReadWriteOnce
+        resources:
+          requests:
+            storage: 1Gi

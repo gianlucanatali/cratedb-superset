@@ -1,0 +1,40 @@
+find "./" -name "*.yaml" -type f | sort -n | xargs -I "{}" sh -c "cat {}; echo '---'" > /gn/crate/k8/template.yaml
+
+kubectl create -f /gn/crate/k8/template.yaml --namespace crate
+
+kubectl delete --all pods --namespace=crate
+
+echo 'http://'"$(minikube service crate-external-service --namespace crate --format "{{.IP}}" | head -n1)"':'"$(kubectl get svc crate-external-service --namespace crate  -o json |  jq -c '.spec.ports[] | select(.name | contains("crate-web")) | .nodePort')"
+
+echo 'http://'"$(minikube service superset --namespace crate --format "{{.IP}}" | head -n1)"':'"$(kubectl get svc superset --namespace crate  -o json |  jq -c '.spec.ports[] | select(.name | contains("crate-web")) | .nodePort')"
+
+kubectl port-forward crate-0 4200:4200 -n pioneers
+
+kubectl port-forward superset-0 8088:8088 -n pioneers
+
+kubectl port-forward redis-75bd69b5bd-sz7k5 6379:6379 -n pioneers
+
+kubectl port-forward postgres-0 5432:5438 -n pioneers
+
+
+kubectl exec -n pioneers -it superset-0 -- /bin/sh 
+
+kubectl logs superset-0
+
+
+CREATE TABLE ingredients (
+  ingredient_id INTEGER, 
+  ingredient_name STRING ,
+  ingredient_price INTEGER
+);
+
+INSERT INTO ingredients
+    (ingredient_id, ingredient_name, ingredient_price)
+VALUES 
+    (1, 'Beef', 5),
+    (2, 'Lettuce', 1),
+    (3, 'Tomatoes', 2),
+    (4, 'Taco Shell', 2),
+    (5, 'Cheese', 3),
+    (6, 'Milk', 1),
+    (7, 'Bread', 2);

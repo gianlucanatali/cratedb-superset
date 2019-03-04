@@ -1,0 +1,32 @@
+apiVersion: v1
+kind: ConfigMap
+data:
+  superset_config.py: |
+    import os
+
+    MAPBOX_API_KEY = os.getenv('MAPBOX_API_KEY', '')
+    CACHE_CONFIG = {
+        'CACHE_TYPE': 'redis',
+        'CACHE_DEFAULT_TIMEOUT': 300,
+        'CACHE_KEY_PREFIX': 'superset_',
+        'CACHE_REDIS_HOST': 'redis-internal-svc',
+        'CACHE_REDIS_PORT': 6379,
+        'CACHE_REDIS_DB': 1,
+        'CACHE_REDIS_URL': 'redis://redis-internal-svc:6379/1'}
+    SQLALCHEMY_DATABASE_URI = \
+        'crate://crate@crate-external-svc:4200/'
+    SQLALCHEMY_TRACK_MODIFICATIONS = False
+    SECRET_KEY = 'thisISaSECRET_1234'
+
+  init_superset.sh: |
+    pip3 install crate --user kubernetes
+    /usr/local/bin/superset-init --username admin --firstname admin --lastname user --email admin@fab.org --password admin
+    superset runserver
+
+metadata:
+  creationTimestamp: 2019-03-01T16:18:17Z
+  name: superset-config
+  namespace: pioneers
+  resourceVersion: "50828"
+  selfLink: /api/v1/namespaces/default/configmaps/superset-config
+  uid: 9f0f7ff1-3c3d-11e9-9428-0800273dbd27

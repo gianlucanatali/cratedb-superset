@@ -1,0 +1,10 @@
+kind: Namespace
+apiVersion: v1
+metadata:
+  name: pioneers
+  labels:
+    project_friendly_name: "pioneer"
+    in_question_contact: "gianluca"
+spec:
+  finalizers:
+  - kubernetes

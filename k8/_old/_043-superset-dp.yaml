@@ -1,0 +1,44 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  annotations:
+    kompose.cmd: kompose convert
+    kompose.version: 1.17.0 ()
+  creationTimestamp: null
+  labels:
+    io.kompose.service: superset
+  name: superset
+  namespace: pioneers
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      creationTimestamp: null
+      labels:
+        io.kompose.service: superset
+    spec:
+      containers:
+      - env:
+        - name: MAPBOX_API_KEY
+        image: amancevice/superset
+        name: superset
+        command: ["/bin/bash"]
+        args: ["/home/superset/init_superset.sh" ]
+        ports:
+        - containerPort: 8088
+        resources: {}
+        volumeMounts:
+        - mountPath: /etc/superset/superset_config.py
+          subPath: superset_config.py
+          name: config-volume
+        - mountPath: /home/superset/init_superset.sh
+          subPath: init_superset.sh
+          name: config-volume
+      restartPolicy: Always
+      volumes:
+      - name: config-volume
+        configMap:
+          name: superset-config
+status: {}
