@@ -5,6 +5,7 @@ metadata:
   namespace: pioneers
   labels:
     app: crate
+    demo_set: "superset-cratedb"
   #annotations:
   #  external-dns.alpha.kubernetes.io/hostname: crate-pioneers.bregenz.a1.cratedb.net
 spec:

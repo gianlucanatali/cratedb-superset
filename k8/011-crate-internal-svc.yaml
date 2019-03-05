@@ -5,6 +5,7 @@ metadata:
   namespace: pioneers
   labels:
     app: crate
+    demo_set: "superset-cratedb"
 spec:
   # A static IP address is assigned to this service. This IP address is
   # only reachable from within the Kubernetes cluster.

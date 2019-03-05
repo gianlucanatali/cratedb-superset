@@ -3,7 +3,9 @@ kind: Service
 metadata:
   labels:
     app: postgres
+    demo_set: "superset-cratedb"
   name: postgres
+  namespace: pioneers
 spec:
   ports:
   - port: 5432

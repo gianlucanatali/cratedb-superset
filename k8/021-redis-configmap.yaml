@@ -8,6 +8,8 @@ metadata:
   creationTimestamp: 2016-03-30T18:14:41Z
   name: redis-config
   namespace: pioneers
+  labels:
+    demo_set: "superset-cratedb"
   resourceVersion: "24686"
   selfLink: /api/v1/namespaces/default/configmaps/redis-config
   uid: 460a2b6e-f6a3-11e5-8ae5-42010af00002

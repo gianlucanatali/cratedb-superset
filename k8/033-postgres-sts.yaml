@@ -4,6 +4,8 @@ metadata:
   # This is the name used as a prefix for all pods in the set.
   name: postgres
   namespace: pioneers
+  labels:
+    demo_set: "superset-cratedb"
 spec:
   serviceName: "postgres-set"
   # Our cluster has three nodes.

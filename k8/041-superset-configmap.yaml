@@ -17,16 +17,578 @@ data:
         'postgresql+psycopg2://postgres:password@postgres:5432/'
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SECRET_KEY = 'thisISaSECRET_1234'
+    # Add endpoints that need to be exempt from CSRF protection
+    WTF_CSRF_EXEMPT_LIST = ['http://localhost:8080']
 
-  init_superset.sh: |
+  cratedb_sample_init.py: |-
+    from crate import client
+    from faker import Faker
+
+    obj=Faker()
+
+    def create_random_data(N=10):
+      num = 1
+      for i in range(N):
+        full_name = obj.name()
+        ads = obj.street_address()
+        state = obj.state()
+        m1 = obj.random_number(digits=2)
+        m2 = obj.random_number(digits=2)
+        m3 = obj.random_number(digits=2)
+        user_test = ("'" + full_name + "'","'" + ads + "'","'" + state + "'",m1,m2,m3)
+        a_list.append(user_test)
+
+    connection = client.connect("http://crate-external-svc:4200/", username="crate")
+    cursor = connection.cursor()
+
+    cursor.execute(
+         """CREATE TABLE IF NOT EXISTS sample_users (
+                name STRING,
+                address STRING,
+                state STRING,
+                m1 INTEGER, 
+                m2 INTEGER,
+                m3 INTEGER)"""
+         )
+    
+    for i in range(100):
+      a_list = []
+      create_random_data(1000)
+
+      cursor.executemany(
+          """INSERT INTO sample_users (name, address, state, m1, m2, m3)
+                  VALUES (?, ?, ?, ?, ?, ?)""",
+          a_list)
+
+  init_superset.sh: |-
+    #echo "--------UPGRADING PIP3 - START -----------------"
+    #echo "-------------------------------------------------"
+    #curl https://bootstrap.pypa.io/get-pip.py | python3 --user kubernetes
+    echo "--------INSTALLING CRATE - START -----------------"
+    echo "-------------------------------------------------"
     pip3 install crate --user kubernetes
+    echo "--------INSTALLING FAKER - START -----------------"
+    echo "-------------------------------------------------"
+    pip3 install Faker --user kubernetes
+    echo "-------- IMPORTING DATA - START -----------------"
+    echo "-------------------------------------------------"
+    chmod +x /home/superset/cratedb_sample_init.py
+    python3 /home/superset/cratedb_sample_init.py
+    echo "-------- IMPORTING DATA - END -------------------"
+    echo "-------------------------------------------------"
     /usr/local/bin/superset-init --username admin --firstname admin --lastname user --email admin@fab.org --password admin
+    
+    superset import_datasources -p /home/superset/dataset_export.yaml
+    superset import_dashboards -p /home/superset/dashboard_export.json
+    
     superset runserver
 
+  dashboard_export.json: |-
+    {
+        "dashboards": [
+            {
+                "__Dashboard__": {
+                    "css": "",
+                    "position_json": "{\"CHART-GMsV65wejK\":{\"children\":[],\"id\":\"CHART-GMsV65wejK\",\"meta\":{\"chartId\":2,\"height\":48,\"sliceName\":\"Users by State\",\"width\":8},\"type\":\"CHART\"},\"CHART-xaDqVStDX6\":{\"children\":[],\"id\":\"CHART-xaDqVStDX6\",\"meta\":{\"chartId\":3,\"height\":50,\"sliceName\":\" - Total Users\",\"width\":4},\"type\":\"CHART\"},\"DASHBOARD_VERSION_KEY\":\"v2\",\"GRID_ID\":{\"children\":[\"ROW-bQo1OKS5WI\"],\"id\":\"GRID_ID\",\"type\":\"GRID\"},\"HEADER_ID\":{\"id\":\"HEADER_ID\",\"meta\":{\"text\":\"My Dashboard\"},\"type\":\"HEADER\"},\"ROOT_ID\":{\"children\":[\"GRID_ID\"],\"id\":\"ROOT_ID\",\"type\":\"ROOT\"},\"ROW-bQo1OKS5WI\":{\"children\":[\"CHART-GMsV65wejK\",\"CHART-xaDqVStDX6\"],\"id\":\"ROW-bQo1OKS5WI\",\"meta\":{\"background\":\"BACKGROUND_TRANSPARENT\"},\"type\":\"ROW\"}}",
+                    "id": 1,
+                    "created_on": {
+                        "__datetime__": "2019-03-05T20:30:18"
+                    },
+                    "created_by_fk": 1,
+                    "description": null,
+                    "dashboard_title": "My Dashboard",
+                    "changed_on": {
+                        "__datetime__": "2019-03-05T20:39:42"
+                    },
+                    "json_metadata": "{\"filter_immune_slices\": [], \"timed_refresh_immune_slices\": [], \"filter_immune_slice_fields\": {}, \"expanded_slices\": {}, \"default_filters\": \"{}\", \"remote_id\": 1}",
+                    "changed_by_fk": 1,
+                    "slug": null,
+                    "slices": [
+                        {
+                            "__Slice__": {
+                                "datasource_id": 1,
+                                "id": 2,
+                                "created_on": {
+                                    "__datetime__": "2019-03-05T20:30:02"
+                                },
+                                "created_by_fk": 1,
+                                "perm": "[CrateDB].[sample_users](id:1)",
+                                "description": null,
+                                "viz_type": "dist_bar",
+                                "datasource_type": "table",
+                                "slice_name": "Users by State",
+                                "changed_on": {
+                                    "__datetime__": "2019-03-05T21:08:22"
+                                },
+                                "changed_by_fk": 1,
+                                "cache_timeout": null,
+                                "params": "{\"datasource\": \"1__table\", \"viz_type\": \"dist_bar\", \"url_params\": {}, \"granularity_sqla\": null, \"time_grain_sqla\": \"P1D\", \"time_range\": \"Last week\", \"metrics\": [\"count\"], \"adhoc_filters\": [], \"groupby\": [\"state\"], \"columns\": [], \"row_limit\": 10000, \"contribution\": false, \"color_scheme\": \"bnbColors\", \"show_legend\": true, \"show_bar_value\": false, \"bar_stacked\": false, \"order_bars\": false, \"y_axis_format\": \".3s\", \"y_axis_label\": \"\", \"show_controls\": false, \"x_axis_label\": \"\", \"bottom_margin\": \"auto\", \"x_ticks_layout\": \"auto\", \"reduce_x_ticks\": false, \"remote_id\": 2, \"datasource_name\": \"doc.sample_users\", \"schema\": \"doc.sample_users\", \"database_name\": \"CrateDB\"}",
+                                "datasource_name": "doc.sample_users"
+                            }
+                        },
+                        {
+                            "__Slice__": {
+                                "datasource_id": 1,
+                                "id": 3,
+                                "created_on": {
+                                    "__datetime__": "2019-03-05T20:37:34"
+                                },
+                                "created_by_fk": 1,
+                                "perm": "[CrateDB].[sample_users](id:1)",
+                                "description": null,
+                                "viz_type": "big_number_total",
+                                "datasource_type": "table",
+                                "slice_name": " - Total Users",
+                                "changed_on": {
+                                    "__datetime__": "2019-03-05T21:08:22"
+                                },
+                                "changed_by_fk": 1,
+                                "cache_timeout": null,
+                                "params": "{\"datasource\": \"1__table\", \"viz_type\": \"big_number_total\", \"slice_id\": 3, \"url_params\": {}, \"granularity_sqla\": null, \"time_grain_sqla\": \"P1D\", \"time_range\": \"Last week\", \"metric\": \"count\", \"adhoc_filters\": [], \"y_axis_format\": \",.0f\", \"remote_id\": 3, \"datasource_name\": \"doc.sample_users\", \"schema\": \"doc.sample_users\", \"database_name\": \"CrateDB\"}",
+                                "datasource_name": "doc.sample_users"
+                            }
+                        }
+                    ]
+                }
+            }
+        ],
+        "datasources": [
+            {
+                "__SqlaTable__": {
+                    "description": "",
+                    "template_params": "",
+                    "table_name": "sample_users",
+                    "default_endpoint": "",
+                    "created_by_fk": 1,
+                    "main_dttm_col": null,
+                    "is_featured": false,
+                    "changed_by_fk": 1,
+                    "database_id": 2,
+                    "filter_select_enabled": false,
+                    "fetch_values_predicate": "",
+                    "offset": 0,
+                    "user_id": null,
+                    "cache_timeout": null,
+                    "created_on": {
+                        "__datetime__": "2019-03-05T20:27:00"
+                    },
+                    "schema": "doc",
+                    "params": "{\"remote_id\": 1, \"database_name\": \"CrateDB\"}",
+                    "changed_on": {
+                        "__datetime__": "2019-03-05T20:27:55"
+                    },
+                    "sql": "",
+                    "perm": "[CrateDB].[sample_users](id:1)",
+                    "id": 1,
+                    "is_sqllab_view": false,
+                    "database": {
+                        "__Database__": {
+                            "allow_run_async": false,
+                            "verbose_name": null,
+                            "impersonate_user": false,
+                            "allow_csv_upload": false,
+                            "database_name": "CrateDB",
+                            "created_by_fk": 1,
+                            "allow_ctas": false,
+                            "sqlalchemy_uri": "crate://crate-external-svc:4200",
+                            "changed_by_fk": 1,
+                            "allow_dml": false,
+                            "password": null,
+                            "force_ctas_schema": "",
+                            "cache_timeout": null,
+                            "created_on": {
+                                "__datetime__": "2019-03-05T20:26:15"
+                            },
+                            "allow_multi_schema_metadata_fetch": false,
+                            "select_as_create_table_as": false,
+                            "extra": "{\r\n    \"metadata_params\": {},\r\n    \"engine_params\": {},\r\n    \"metadata_cache_timeout\": {},\r\n    \"schemas_allowed_for_csv_upload\": []\r\n}\r\n",
+                            "changed_on": {
+                                "__datetime__": "2019-03-05T20:26:15"
+                            },
+                            "expose_in_sqllab": false,
+                            "id": 2,
+                            "perm": "[CrateDB].(id:2)",
+                            "allow_run_sync": true
+                        }
+                    },
+                    "columns": [
+                        {
+                            "__TableColumn__": {
+                                "groupby": true,
+                                "table_id": 1,
+                                "count_distinct": false,
+                                "is_dttm": false,
+                                "sum": false,
+                                "changed_on": {
+                                    "__datetime__": "2019-03-05T20:27:00"
+                                },
+                                "expression": "",
+                                "avg": false,
+                                "id": 1,
+                                "python_date_format": null,
+                                "max": false,
+                                "column_name": "address",
+                                "database_expression": null,
+                                "min": false,
+                                "verbose_name": null,
+                                "created_by_fk": 1,
+                                "filterable": true,
+                                "is_active": true,
+                                "changed_by_fk": 1,
+                                "created_on": {
+                                    "__datetime__": "2019-03-05T20:27:00"
+                                },
+                                "description": null,
+                                "type": "STRING"
+                            }
+                        },
+                        {
+                            "__TableColumn__": {
+                                "groupby": false,
+                                "table_id": 1,
+                                "count_distinct": false,
+                                "is_dttm": false,
+                                "sum": true,
+                                "changed_on": {
+                                    "__datetime__": "2019-03-05T20:27:00"
+                                },
+                                "expression": "",
+                                "avg": true,
+                                "id": 2,
+                                "python_date_format": null,
+                                "max": false,
+                                "column_name": "m1",
+                                "database_expression": null,
+                                "min": false,
+                                "verbose_name": null,
+                                "created_by_fk": 1,
+                                "filterable": false,
+                                "is_active": true,
+                                "changed_by_fk": 1,
+                                "created_on": {
+                                    "__datetime__": "2019-03-05T20:27:00"
+                                },
+                                "description": null,
+                                "type": "INT"
+                            }
+                        },
+                        {
+                            "__TableColumn__": {
+                                "groupby": false,
+                                "table_id": 1,
+                                "count_distinct": false,
+                                "is_dttm": false,
+                                "sum": true,
+                                "changed_on": {
+                                    "__datetime__": "2019-03-05T20:27:00"
+                                },
+                                "expression": "",
+                                "avg": true,
+                                "id": 3,
+                                "python_date_format": null,
+                                "max": false,
+                                "column_name": "m2",
+                                "database_expression": null,
+                                "min": false,
+                                "verbose_name": null,
+                                "created_by_fk": 1,
+                                "filterable": false,
+                                "is_active": true,
+                                "changed_by_fk": 1,
+                                "created_on": {
+                                    "__datetime__": "2019-03-05T20:27:00"
+                                },
+                                "description": null,
+                                "type": "INT"
+                            }
+                        },
+                        {
+                            "__TableColumn__": {
+                                "groupby": false,
+                                "table_id": 1,
+                                "count_distinct": false,
+                                "is_dttm": false,
+                                "sum": true,
+                                "changed_on": {
+                                    "__datetime__": "2019-03-05T20:27:00"
+                                },
+                                "expression": "",
+                                "avg": true,
+                                "id": 4,
+                                "python_date_format": null,
+                                "max": false,
+                                "column_name": "m3",
+                                "database_expression": null,
+                                "min": false,
+                                "verbose_name": null,
+                                "created_by_fk": 1,
+                                "filterable": false,
+                                "is_active": true,
+                                "changed_by_fk": 1,
+                                "created_on": {
+                                    "__datetime__": "2019-03-05T20:27:00"
+                                },
+                                "description": null,
+                                "type": "INT"
+                            }
+                        },
+                        {
+                            "__TableColumn__": {
+                                "groupby": true,
+                                "table_id": 1,
+                                "count_distinct": false,
+                                "is_dttm": false,
+                                "sum": false,
+                                "changed_on": {
+                                    "__datetime__": "2019-03-05T20:27:00"
+                                },
+                                "expression": "",
+                                "avg": false,
+                                "id": 5,
+                                "python_date_format": null,
+                                "max": false,
+                                "column_name": "name",
+                                "database_expression": null,
+                                "min": false,
+                                "verbose_name": null,
+                                "created_by_fk": 1,
+                                "filterable": true,
+                                "is_active": true,
+                                "changed_by_fk": 1,
+                                "created_on": {
+                                    "__datetime__": "2019-03-05T20:27:00"
+                                },
+                                "description": null,
+                                "type": "STRING"
+                            }
+                        },
+                        {
+                            "__TableColumn__": {
+                                "groupby": true,
+                                "table_id": 1,
+                                "count_distinct": false,
+                                "is_dttm": false,
+                                "sum": false,
+                                "changed_on": {
+                                    "__datetime__": "2019-03-05T20:27:00"
+                                },
+                                "expression": "",
+                                "avg": false,
+                                "id": 6,
+                                "python_date_format": null,
+                                "max": false,
+                                "column_name": "state",
+                                "database_expression": null,
+                                "min": false,
+                                "verbose_name": null,
+                                "created_by_fk": 1,
+                                "filterable": true,
+                                "is_active": true,
+                                "changed_by_fk": 1,
+                                "created_on": {
+                                    "__datetime__": "2019-03-05T20:27:00"
+                                },
+                                "description": null,
+                                "type": "STRING"
+                            }
+                        }
+                    ],
+                    "metrics": [
+                        {
+                            "__SqlMetric__": {
+                                "changed_on": {
+                                    "__datetime__": "2019-03-05T20:27:00"
+                                },
+                                "changed_by_fk": 1,
+                                "expression": "SUM(m1)",
+                                "warning_text": null,
+                                "d3format": null,
+                                "description": null,
+                                "verbose_name": null,
+                                "id": 1,
+                                "created_on": {
+                                    "__datetime__": "2019-03-05T20:27:00"
+                                },
+                                "created_by_fk": 1,
+                                "table_id": 1,
+                                "is_restricted": false,
+                                "metric_type": "sum",
+                                "metric_name": "sum__m1"
+                            }
+                        },
+                        {
+                            "__SqlMetric__": {
+                                "changed_on": {
+                                    "__datetime__": "2019-03-05T20:27:00"
+                                },
+                                "changed_by_fk": 1,
+                                "expression": "AVG(m1)",
+                                "warning_text": null,
+                                "d3format": null,
+                                "description": null,
+                                "verbose_name": null,
+                                "id": 2,
+                                "created_on": {
+                                    "__datetime__": "2019-03-05T20:27:00"
+                                },
+                                "created_by_fk": 1,
+                                "table_id": 1,
+                                "is_restricted": false,
+                                "metric_type": "avg",
+                                "metric_name": "avg__m1"
+                            }
+                        },
+                        {
+                            "__SqlMetric__": {
+                                "changed_on": {
+                                    "__datetime__": "2019-03-05T20:27:00"
+                                },
+                                "changed_by_fk": 1,
+                                "expression": "SUM(m2)",
+                                "warning_text": null,
+                                "d3format": null,
+                                "description": null,
+                                "verbose_name": null,
+                                "id": 3,
+                                "created_on": {
+                                    "__datetime__": "2019-03-05T20:27:00"
+                                },
+                                "created_by_fk": 1,
+                                "table_id": 1,
+                                "is_restricted": false,
+                                "metric_type": "sum",
+                                "metric_name": "sum__m2"
+                            }
+                        },
+                        {
+                            "__SqlMetric__": {
+                                "changed_on": {
+                                    "__datetime__": "2019-03-05T20:27:00"
+                                },
+                                "changed_by_fk": 1,
+                                "expression": "AVG(m2)",
+                                "warning_text": null,
+                                "d3format": null,
+                                "description": null,
+                                "verbose_name": null,
+                                "id": 4,
+                                "created_on": {
+                                    "__datetime__": "2019-03-05T20:27:00"
+                                },
+                                "created_by_fk": 1,
+                                "table_id": 1,
+                                "is_restricted": false,
+                                "metric_type": "avg",
+                                "metric_name": "avg__m2"
+                            }
+                        },
+                        {
+                            "__SqlMetric__": {
+                                "changed_on": {
+                                    "__datetime__": "2019-03-05T20:27:00"
+                                },
+                                "changed_by_fk": 1,
+                                "expression": "SUM(m3)",
+                                "warning_text": null,
+                                "d3format": null,
+                                "description": null,
+                                "verbose_name": null,
+                                "id": 5,
+                                "created_on": {
+                                    "__datetime__": "2019-03-05T20:27:00"
+                                },
+                                "created_by_fk": 1,
+                                "table_id": 1,
+                                "is_restricted": false,
+                                "metric_type": "sum",
+                                "metric_name": "sum__m3"
+                            }
+                        },
+                        {
+                            "__SqlMetric__": {
+                                "changed_on": {
+                                    "__datetime__": "2019-03-05T20:27:00"
+                                },
+                                "changed_by_fk": 1,
+                                "expression": "AVG(m3)",
+                                "warning_text": null,
+                                "d3format": null,
+                                "description": null,
+                                "verbose_name": null,
+                                "id": 6,
+                                "created_on": {
+                                    "__datetime__": "2019-03-05T20:27:00"
+                                },
+                                "created_by_fk": 1,
+                                "table_id": 1,
+                                "is_restricted": false,
+                                "metric_type": "avg",
+                                "metric_name": "avg__m3"
+                            }
+                        },
+                        {
+                            "__SqlMetric__": {
+                                "changed_on": {
+                                    "__datetime__": "2019-03-05T20:27:00"
+                                },
+                                "changed_by_fk": 1,
+                                "expression": "COUNT(*)",
+                                "warning_text": null,
+                                "d3format": null,
+                                "description": null,
+                                "verbose_name": "COUNT(*)",
+                                "id": 7,
+                                "created_on": {
+                                    "__datetime__": "2019-03-05T20:27:00"
+                                },
+                                "created_by_fk": 1,
+                                "table_id": 1,
+                                "is_restricted": false,
+                                "metric_type": "count",
+                                "metric_name": "count"
+                            }
+                        }
+                    ]
+                }
+            }
+        ]
+    }
+  
+  dataset_export.yaml: |
+    - database_name: CrateDB
+      extra: "{\r\n    \"metadata_params\": {},\r\n    \"engine_params\": {},\r\n    \"\
+        metadata_cache_timeout\": {},\r\n    \"schemas_allowed_for_csv_upload\": []\r\n\
+        }\r\n"
+      sqlalchemy_uri: crate://crate-external-svc:4200
+      tables:
+      - columns:
+        - {avg: true, column_name: m1, sum: true, type: INT}
+        - {avg: true, column_name: m2, sum: true, type: INT}
+        - {avg: true, column_name: m3, sum: true, type: INT}
+        - {column_name: address, filterable: true, groupby: true, type: STRING}
+        - {column_name: name, filterable: true, groupby: true, type: STRING}
+        - {column_name: state, filterable: true, groupby: true, type: STRING}
+        default_endpoint: ''
+        description: ''
+        fetch_values_predicate: ''
+        metrics:
+        - {expression: AVG(m1), metric_name: avg__m1, metric_type: avg}
+        - {expression: AVG(m2), metric_name: avg__m2, metric_type: avg}
+        - {expression: AVG(m3), metric_name: avg__m3, metric_type: avg}
+        - {expression: COUNT(*), metric_name: count, metric_type: count, verbose_name: COUNT(*)}
+        - {expression: SUM(m1), metric_name: sum__m1, metric_type: sum}
+        - {expression: SUM(m2), metric_name: sum__m2, metric_type: sum}
+        - {expression: SUM(m3), metric_name: sum__m3, metric_type: sum}
+        schema: doc
+        sql: ''
+        table_name: sample_users
+        template_params: ''
 metadata:
   creationTimestamp: 2019-03-01T16:18:17Z
   name: superset-config
   namespace: pioneers
+  labels:
+    demo_set: "superset-cratedb"
   resourceVersion: "50828"
   selfLink: /api/v1/namespaces/default/configmaps/superset-config
   uid: 9f0f7ff1-3c3d-11e9-9428-0800273dbd27
