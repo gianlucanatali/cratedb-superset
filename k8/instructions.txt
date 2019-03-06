@@ -31,3 +31,21 @@ VALUES
     ('Gianluca', 'Nice Address', 'California',1,1,1);
 
 kubectl create configmap superset-resources --from-file=/gn/tmp/dataset_export.yaml --from-file=/gn/tmp/dashboard_export.json
+
+kubectl create configmap superset-resources --from-file=/gn/tmp/dataset_export.yaml
+
+
+kubectl get configmaps superset-resources-2 -o yaml > /gn/tmp/new_yaml.yaml
+
+
+tail -1000 /home/superset/dataset_export.yaml
+
+superset import_datasources -f /home/superset/dataset_export.yaml
+superset export_datasources -f /home/superset/new_export.yaml
+tail -2000 /home/superset/new_export.yaml
+
+superset import_datasources -p /home/superset/dataset_export.yaml
+superset import_datasources -p /home/superset/new_export.yaml
+
+kubectl get all -l demo_set=superset-cratedb -n pioneers \
+& kubectl get configmaps -l demo_set=superset-cratedb -n pioneers
