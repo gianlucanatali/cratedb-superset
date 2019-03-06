@@ -35,7 +35,7 @@ data:
         m1 = obj.random_number(digits=2)
         m2 = obj.random_number(digits=2)
         m3 = obj.random_number(digits=2)
-        user_test = ("'" + full_name + "'","'" + ads + "'","'" + state + "'",m1,m2,m3)
+        user_test = (full_name,ads,state,m1,m2,m3)
         a_list.append(user_test)
 
     connection = client.connect("http://crate-external-svc:4200/", username="crate")
