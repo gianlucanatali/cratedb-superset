@@ -6,8 +6,8 @@ metadata:
   labels:
     app: crate
     demo_set: "superset-cratedb"
-  #annotations:
-  #  external-dns.alpha.kubernetes.io/hostname: crate-pioneers.bregenz.a1.cratedb.net
+  annotations:
+    external-dns.alpha.kubernetes.io/hostname: crate-pioneers.bregenz.a1.cratedb.net
 spec:
   # Create an externally reachable load balancer.
   type: LoadBalancer

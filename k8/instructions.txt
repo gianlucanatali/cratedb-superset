@@ -8,6 +8,9 @@ echo 'http://'"$(minikube service crate-external-service --namespace crate --for
 
 echo 'http://'"$(minikube service superset --namespace crate --format "{{.IP}}" | head -n1)"':'"$(kubectl get svc superset --namespace crate  -o json |  jq -c '.spec.ports[] | select(.name | contains("crate-web")) | .nodePort')"
 
+Switch context and namespaces by using:
+kubectx and kubens
+
 kubectl port-forward crate-0 4200:4200 -n pioneers
 
 kubectl port-forward superset-0 8088:8088 -n pioneers
@@ -49,3 +52,9 @@ superset import_datasources -p /home/superset/new_export.yaml
 
 kubectl get all -l demo_set=superset-cratedb -n pioneers \
 & kubectl get configmaps -l demo_set=superset-cratedb -n pioneers
+
+export KUBECONFIG=$HOME/.kube/config:$HOME/.kube/myconfig
+
+find "./" -name "*configmap.yaml" -type f -maxdepth 1 | sort -n | xargs -I "{}" sh -c "cat {}; echo '---'" > internal/001_configmaps.yaml
+find "./" -name "*svc.yaml" -type f -maxdepth 1 | sort -n | xargs -I "{}" sh -c "cat {}; echo '---'" > internal/002_services.yaml
+find "./" -name "*dp.yaml" -or -name "*sts.yaml" -type f -maxdepth 1 | sort -n | xargs -I "{}" sh -c "cat {}; echo '---'" > internal/003_dp_and_sts.yaml

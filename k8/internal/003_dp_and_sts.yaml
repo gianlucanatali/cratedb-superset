@@ -1,0 +1,281 @@
+# kubectl create namespace crate
+# kubectl create -f crate-external-service.yaml  -f crate-internal-service.yaml -f crate-controller.yaml --namespace crate
+#check port -> kubectl get svc crate-external-service --namespace crate  -o json |  jq -c '.spec.ports[] | select(.name | contains("crate-web")) | .nodePort'
+#check ip -> minikube service crate-external-service --namespace crate --format "{{.IP}}" | head -n1 
+#easy echo 'http://'"$(minikube service crate-external-service --namespace crate --format "{{.IP}}" | head -n1)"':'"$(kubectl get svc crate-external-service --namespace crate  -o json |  jq -c '.spec.ports[] | select(.name | contains("crate-web")) | .nodePort')"
+#kubectl port-forward crate-0 4200:4200 -n pioneers
+
+apiVersion: "apps/v1"
+# We're using a StatefulSet controller.
+kind: StatefulSet
+metadata:
+  # This is the name used as a prefix for all pods in the set.
+  name: crate
+  namespace: pioneers
+  labels:
+    demo_set: "superset-cratedb"
+spec:
+  serviceName: "crate-set"
+  # Our cluster has three nodes.
+  replicas: 3
+  selector:
+    matchLabels:
+      # The pods in this cluster have the `app:crate` app label.
+      app: crate
+  template:
+    metadata:
+      labels:
+        app: crate
+    spec:
+      # InitContainers run before the main containers of a pod are
+      # started, and they must terminate before the primary pods are
+      # initialized. Here, we use one to set the correct memory map limit.
+      initContainers:
+      - name: init-sysctl
+        image: busybox
+        imagePullPolicy: IfNotPresent
+        command: ["sysctl", "-w", "vm.max_map_count=262144"]
+        securityContext:
+          privileged: true
+      # This final section is the core of the StatefulSet configuration.
+      # It defines the container to run in each pod.
+      containers:
+      - name: crate
+        # Use the CrateDB 3.2.3 Docker image.
+        image: crate:3.2.3
+        # Pass in configuration to CrateDB via command-line options.
+        # Notice that we are configuring CrateDB unicast host discovery
+        # using the SRV records provided by Kubernetes.
+        command:
+          - /docker-entrypoint.sh
+          - -Ccluster.name=${CLUSTER_NAME}
+          - -Cdiscovery.zen.minimum_master_nodes=2
+          - -Cdiscovery.zen.hosts_provider=srv
+          - -Cdiscovery.srv.query=_crate-internal._tcp.crate-internal-service.${NAMESPACE}.svc.cluster.local
+          - -Cgateway.recover_after_nodes=2
+          - -Cgateway.expected_nodes=${EXPECTED_NODES}
+          - -Cpath.data=/data
+        volumeMounts:
+              # Mount the `/data` directory as a volume named `data`.
+            - mountPath: /data
+              name: data
+        resources:
+          limits:
+            # How much memory each pod gets.
+            memory: 500Mi
+        ports:
+          # Port 4300 for inter-node communication.
+        - containerPort: 4300
+          name: crate-internal
+          # Port 4200 for HTTP clients.
+        - containerPort: 4200
+          name: crate-web
+          # Port 5432 for PostgreSQL wire protocol clients.
+        - containerPort: 5432
+          name: postgres
+        # Environment variables passed through to the container.
+        env:
+          # This is variable is detected by CrateDB.
+        - name: CRATE_HEAP_SIZE
+          value: "1g"
+          # The rest of these variables are used in the command-line
+          # options.
+        - name: EXPECTED_NODES
+          value: "3"
+        - name: CLUSTER_NAME
+          value: "my-crate"
+        - name: NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+  volumeClaimTemplates:
+    # Use persistent storage.
+    - metadata:
+        name: data
+      spec:
+        #probably change storageclassname this before running in bregenz
+        storageClassName: crate-premium
+        accessModes:
+        - ReadWriteOnce
+        resources:
+          requests:
+            storage: 1Gi
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: redis
+  namespace: pioneers
+  labels:
+    demo_set: "superset-cratedb"
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      creationTimestamp: null
+      labels:
+        app: redis
+        role: master
+        tier: backend
+    spec:
+      containers:
+      - image: redis
+        name: redis
+        resources:
+          requests:
+            cpu: 100m
+            memory: 100Mi
+        ports:
+        - containerPort: 6379
+        resources: {}
+        volumeMounts:
+        - mountPath: /redis-data
+          name: data
+        - mountPath: /redis
+          name: config
+      restartPolicy: Always
+      volumes:
+      - name: data
+        emptyDir: {}
+      - name: config
+        configMap:
+          name: redis-config
+          items:
+          - key: redis-config
+            path: redis.conf
+status: {}
+---
+apiVersion: "apps/v1"
+kind: StatefulSet
+metadata:
+  # This is the name used as a prefix for all pods in the set.
+  name: postgres
+  namespace: pioneers
+  labels:
+    demo_set: "superset-cratedb"
+spec:
+  serviceName: "postgres-set"
+  # Our cluster has three nodes.
+  replicas: 1
+  selector:
+    matchLabels:
+      # The pods in this cluster have the `app:crate` app label.
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      # This final section is the core of the StatefulSet configuration.
+      # It defines the container to run in each pod.
+      containers:
+      - name: postgres
+        # Use the CrateDB 3.2.3 Docker image.
+        image: postgres:9.6
+        resources:
+          limits:
+            cpu: .25
+            memory: 500Mi
+        ports:
+          # Port 5432 for PostgreSQL wire protocol clients.
+        - containerPort: 5432
+          name: postgres
+          protocol: TCP
+        # Environment variables passed through to the container.
+        env:
+          # This is variable is detected by CrateDB.
+        - name: POSTGRES_USER
+          value: postgres
+        - name: POSTGRES_PASSWORD
+          value: password
+  volumeClaimTemplates:
+    # Use persistent storage.
+    - metadata:
+        name: postgres-data
+      spec:
+        #probably change storageclassname this before running in bregenz
+        storageClassName: crate-premium
+        accessModes:
+        - ReadWriteOnce
+        resources:
+          requests:
+            storage: 1Gi
+---
+apiVersion: "apps/v1"
+kind: StatefulSet
+metadata:
+  # This is the name used as a prefix for all pods in the set.
+  name: superset
+  namespace: pioneers
+  labels:
+    demo_set: "superset-cratedb"
+spec:
+  serviceName: "superset-set"
+  # Our cluster has three nodes.
+  replicas: 1
+  selector:
+    matchLabels:
+      app: superset
+  template:
+    metadata:
+      labels:
+        app: superset
+    spec:
+      containers:
+      - name: superset
+        image: amancevice/superset
+        command: ["/bin/bash"]
+        args: ["/home/superset/init_superset.sh" ]
+        volumeMounts:
+        - mountPath: /etc/superset/superset_config.py
+          subPath: superset_config.py
+          name: config-volume
+        - mountPath: /home/superset/cratedb_sample_init.py
+          subPath: cratedb_sample_init.py
+          name: config-volume
+        - mountPath: /home/superset/init_superset.sh
+          subPath: init_superset.sh
+          name: config-volume
+        - mountPath: /home/superset/dataset_export.yaml
+          subPath: dataset_export.yaml
+          name: config-volume
+        - mountPath: /home/superset/dashboard_export.json
+          subPath: dashboard_export.json
+          name: config-volume
+        resources:
+          limits:
+            # How much memory each pod gets.
+            memory: 500Mi
+        ports:
+          # Port 4200 for HTTP clients.
+        - containerPort: 8088
+          name: superset-web
+      initContainers:
+      - name: wait-redis-internal-svc
+        image: busybox
+        command: ['sh', '-c', 'until nslookup redis-internal-svc; do echo waiting for redis-internal-svc; sleep 2; done;']
+      - name: wait-postgres
+        image: busybox
+        command: ['sh', '-c', 'until nslookup postgres; do echo waiting for postgres; sleep 2; done;']
+      - name: wait-cratedb
+        image: busybox
+        command: ['sh', '-c', 'until nslookup crate-external-svc; do echo waiting for crate-external-svc; sleep 2; done;']
+      volumes:
+      - name: config-volume
+        configMap:
+          name: superset-config
+  volumeClaimTemplates:
+    # Use persistent storage.
+    - metadata:
+        name: superset-data
+      spec:
+        #probably change storageclassname this before running in bregenz
+        storageClassName: crate-premium
+        accessModes:
+        - ReadWriteOnce
+        resources:
+          requests:
+            storage: 1Gi
+---
